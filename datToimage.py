@@ -10,44 +10,32 @@ class ImgType(Enum):
 
 class WechatConvert(object):
 
-    def __init__(self, absolute_file_path):
-        self.file_path = absolute_file_path
-        self.file_name = self.file_path.split("/")[-1]
-
-    def _find_and_set_img_type(self):
-        with open(self.file_path, 'rb+') as f:
+    @staticmethod
+    def find_img_type(file_path):
+        with open(file_path, 'rb+') as f:
             byte1 = int.from_bytes(f.read(1), byteorder=sys.byteorder)
             byte2 = int.from_bytes(f.read(1), byteorder=sys.byteorder)
         for img_enum in ImgType:
-            if self._set_img(img_enum, byte1, byte2):
-                return
+            png_tuple = WechatConvert.hex_to_tuple(img_enum.value)
+            if png_tuple[0] ^ byte1 == png_tuple[1] ^ byte2:
+                return img_enum.name, png_tuple[0] ^ byte1
         raise Exception("不支持的图片类型")
 
-    def _set_img(self, img: ImgType, b1, b2):
-        png_tuple = self._hex2tuple(img.value)
-        if png_tuple[0] ^ b1 == png_tuple[1] ^ b2:
-            self._img_type = img.name
-            self._img_xor = png_tuple[0] ^ b1
-            return True
-        return False
-
-    def _hex2tuple(self, img_type):
+    @staticmethod
+    def hex_to_tuple(img_type):
         return img_type >> 8, img_type & 0b11111111
 
-    def convert(self, output_path="."):
+    def convert(self, file_path, output_path="."):
+        file_name = file_path.split("/")[-1]
         # 获取图片类型
-        self._find_and_set_img_type()
-        with open(self.file_path, 'rb+') as fd:
+        img_type,img_xor = WechatConvert.find_img_type(file_path)
+        with open(file_path, 'rb+') as fd:
             # 读取2 byte
-            with open(output_path + "/" + self.file_name + "." + self._img_type, 'wb+') as w:
+            with open(output_path + "/" + file_name + "." + img_type, 'wb+') as w:
                 while True:
                     b = fd.read(1)
                     if not b:
                         break
-                    real = int.from_bytes(b, byteorder=sys.byteorder) ^ self._img_xor
+                    real = int.from_bytes(b, byteorder=sys.byteorder) ^ img_xor
                     real_bytes = int.to_bytes(real, 1, sys.byteorder)
                     w.write(real_bytes)
-
-
-
-
